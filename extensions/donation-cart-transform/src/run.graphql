@@ -1,0 +1,17 @@
+query RunInput {
+  cart {
+    lines {
+      id
+      quantity
+      donationAmount: attribute(key: "__donation_amount") {
+        value
+      }
+      merchandise {
+        __typename
+        ...on ProductVariant {
+          id
+        }
+      }
+    }
+  }
+}
