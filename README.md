@@ -87,6 +87,8 @@ You can debug functions via the partners account once you have them running.
 
 If you receive any permissions errors during running the above commands try installing the app to your store via the partners account and confirming any permissions prompts as you do so.
 
+**To work correctly there must be a product with the handle 'donation' already in setup in the store as it will be used as the basis for the donation product title, image etc** 
+
 ## Production
 
 Deploying to production is as simple as running step 6 with 'deploy' rather than 'dev' and ensuring via partners the app is installed to your production store.
