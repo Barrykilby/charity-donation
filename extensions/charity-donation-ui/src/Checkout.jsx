@@ -29,7 +29,7 @@ const donationOptions = [
 ];
 
 export default reactExtension(
-  'purchase.checkout.shipping-option-list.render-after',
+  'purchase.checkout.block.render',
   () => <Extension />,
 );
 
