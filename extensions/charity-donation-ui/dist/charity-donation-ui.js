@@ -19137,6 +19137,192 @@
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/extension.mjs
   var extension = createExtensionRegistrationFunction();
 
+  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/style/memoize.mjs
+  var NOT_FOUND = "NOT_FOUND";
+  function createSingletonCache(equals) {
+    let entry;
+    return {
+      get(key) {
+        if (entry && equals(entry.key, key)) {
+          return entry.value;
+        }
+        return NOT_FOUND;
+      },
+      put(key, value) {
+        entry = {
+          key,
+          value
+        };
+      },
+      getEntries() {
+        return entry ? [entry] : [];
+      },
+      clear() {
+        entry = void 0;
+      }
+    };
+  }
+  function createLruCache(maxSize, equals) {
+    let entries = [];
+    function get(key) {
+      const cacheIndex = entries.findIndex((entry) => equals(key, entry.key));
+      if (cacheIndex > -1) {
+        const entry = entries[cacheIndex];
+        if (cacheIndex > 0) {
+          entries.splice(cacheIndex, 1);
+          entries.unshift(entry);
+        }
+        return entry.value;
+      }
+      return NOT_FOUND;
+    }
+    function put(key, value) {
+      if (get(key) === NOT_FOUND) {
+        entries.unshift({
+          key,
+          value
+        });
+        if (entries.length > maxSize) {
+          entries.pop();
+        }
+      }
+    }
+    function getEntries() {
+      return entries;
+    }
+    function clear() {
+      entries = [];
+    }
+    return {
+      get,
+      put,
+      getEntries,
+      clear
+    };
+  }
+  var defaultEqualityCheck = (first, second) => {
+    return first === second;
+  };
+  function createCacheKeyComparator(equalityCheck) {
+    return function areArgumentsShallowlyEqual(prev, next) {
+      if (prev === null || next === null || prev.length !== next.length) {
+        return false;
+      }
+      const length = prev.length;
+      for (let i = 0; i < length; i++) {
+        if (!equalityCheck(prev[i], next[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
+  }
+  function memoize(func, equalityCheckOrOptions) {
+    const providedOptions = typeof equalityCheckOrOptions === "object" ? equalityCheckOrOptions : {
+      equalityCheck: equalityCheckOrOptions
+    };
+    const {
+      equalityCheck = defaultEqualityCheck,
+      maxSize = 1,
+      resultEqualityCheck
+    } = providedOptions;
+    const comparator = createCacheKeyComparator(equalityCheck);
+    const cache2 = maxSize === 1 ? createSingletonCache(comparator) : createLruCache(maxSize, comparator);
+    function memoized() {
+      let value = cache2.get(arguments);
+      if (value === NOT_FOUND) {
+        value = func.apply(null, arguments);
+        if (resultEqualityCheck) {
+          const entries = cache2.getEntries();
+          const matchingEntry = entries.find((entry) => resultEqualityCheck(entry.value, value));
+          if (matchingEntry) {
+            value = matchingEntry.value;
+          }
+        }
+        cache2.put(arguments, value);
+      }
+      return value;
+    }
+    memoized.clearCache = () => cache2.clear();
+    return memoized;
+  }
+
+  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/style/isEqual.mjs
+  function isEqual(first, second) {
+    if (Object.is(first, second)) {
+      return true;
+    }
+    if (typeof first === "object" && typeof second === "object") {
+      if (Array.isArray(first) && Array.isArray(second)) {
+        if (first.length === second.length) {
+          return first.every((value, index) => isEqual(value, second[index]));
+        }
+      } else {
+        const firstEntries = Object.entries(first);
+        const secondEntries = Object.entries(second);
+        if (firstEntries.length === secondEntries.length) {
+          return firstEntries.every(([key]) => isEqual(first[key], second[key]));
+        }
+      }
+    }
+    return false;
+  }
+
+  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/style/style.mjs
+  var MAX_CACHE_SIZE = 50;
+  var MEMOIZE_OPTIONS = {
+    equalityCheck: isEqual,
+    maxSize: MAX_CACHE_SIZE
+  };
+  var when = function when2(conditions, value) {
+    const config = isConditionalStyle(this) ? {
+      default: this.default,
+      conditionals: [...this.conditionals, {
+        conditions,
+        value
+      }]
+    } : {
+      conditionals: [{
+        conditions,
+        value
+      }]
+    };
+    return createChainableConditionalStyle(config);
+  };
+  var Style = {
+    /**
+     * Sets an optional default value to use when no other condition is met.
+     *
+     * @param defaultValue The default value
+     * @returns The chainable condition style
+     */
+    default: memoize((defaultValue) => createChainableConditionalStyle({
+      default: defaultValue,
+      conditionals: []
+    }), MEMOIZE_OPTIONS),
+    /**
+     * Adjusts the style based on different conditions. All conditions, expressed
+     * as a literal object, must be met for the associated value to be applied.
+     *
+     * The `when` method can be chained together to build more complex styles.
+     *
+     * @param conditions The condition(s)
+     * @param value The conditional value that can be applied if the conditions are met
+     * @returns The chainable condition style
+     */
+    when: memoize(when, MEMOIZE_OPTIONS)
+  };
+  function createChainableConditionalStyle(conditionalStyle) {
+    const proto = {};
+    const returnConditionalStyle = Object.create(proto);
+    Object.assign(returnConditionalStyle, conditionalStyle);
+    proto.when = memoize(when.bind(returnConditionalStyle), MEMOIZE_OPTIONS);
+    return returnConditionalStyle;
+  }
+  function isConditionalStyle(value) {
+    return value !== null && typeof value === "object" && "conditionals" in value;
+  }
+
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Banner/Banner.mjs
   var Banner = createRemoteComponent("Banner");
 
@@ -19149,26 +19335,23 @@
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Checkbox/Checkbox.mjs
   var Checkbox = createRemoteComponent("Checkbox");
 
+  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Grid/Grid.mjs
+  var Grid = createRemoteComponent("Grid");
+
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Heading/Heading.mjs
   var Heading = createRemoteComponent("Heading");
 
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/InlineLayout/InlineLayout.mjs
   var InlineLayout = createRemoteComponent("InlineLayout");
 
-  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/InlineStack/InlineStack.mjs
-  var InlineStack = createRemoteComponent("InlineStack");
-
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Link/Link.mjs
   var Link = createRemoteComponent("Link");
 
-  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Pressable/Pressable.mjs
-  var Pressable = createRemoteComponent("Pressable");
+  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Text/Text.mjs
+  var Text = createRemoteComponent("Text");
 
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/TextField/TextField.mjs
   var TextField = createRemoteComponent("TextField");
-
-  // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/Tooltip/Tooltip.mjs
-  var Tooltip = createRemoteComponent("Tooltip");
 
   // node_modules/@shopify/ui-extensions/build/esm/surfaces/checkout/components/ToggleButton/ToggleButton.mjs
   var ToggleButton = createRemoteComponent("ToggleButton");
@@ -19521,32 +19704,27 @@ ${errorInfo.componentStack}`);
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Checkbox/Checkbox.mjs
   var Checkbox2 = createRemoteReactComponent(Checkbox);
 
+  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Grid/Grid.mjs
+  var Grid2 = createRemoteReactComponent(Grid);
+
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Heading/Heading.mjs
   var Heading2 = createRemoteReactComponent(Heading);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/InlineLayout/InlineLayout.mjs
   var InlineLayout2 = createRemoteReactComponent(InlineLayout);
 
-  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/InlineStack/InlineStack.mjs
-  var InlineStack2 = createRemoteReactComponent(InlineStack);
-
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Link/Link.mjs
   var Link2 = createRemoteReactComponent(Link, {
     fragmentProps: ["overlay"]
   });
 
-  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Pressable/Pressable.mjs
-  var Pressable2 = createRemoteReactComponent(Pressable, {
-    fragmentProps: ["overlay"]
-  });
+  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Text/Text.mjs
+  var Text2 = createRemoteReactComponent(Text);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/TextField/TextField.mjs
   var TextField2 = createRemoteReactComponent(TextField, {
     fragmentProps: ["accessory"]
   });
-
-  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/Tooltip/Tooltip.mjs
-  var Tooltip2 = createRemoteReactComponent(Tooltip);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/components/ToggleButton/ToggleButton.mjs
   var ToggleButton2 = createRemoteReactComponent(ToggleButton);
@@ -19558,7 +19736,7 @@ ${errorInfo.componentStack}`);
   var View2 = createRemoteReactComponent(View);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/api.mjs
-  var import_react22 = __toESM(require_react(), 1);
+  var import_react21 = __toESM(require_react(), 1);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/errors.mjs
   var CheckoutUIExtensionError = class extends Error {
@@ -19576,7 +19754,7 @@ ${errorInfo.componentStack}`);
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/api.mjs
   function useApi(_target) {
-    const api = (0, import_react22.useContext)(ExtensionApiContext);
+    const api = (0, import_react21.useContext)(ExtensionApiContext);
     if (api == null) {
       throw new CheckoutUIExtensionError("You can only call this hook when running as a checkout UI extension.");
     }
@@ -19584,10 +19762,10 @@ ${errorInfo.componentStack}`);
   }
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/subscription.mjs
-  var import_react23 = __toESM(require_react(), 1);
+  var import_react22 = __toESM(require_react(), 1);
   function useSubscription(subscription) {
-    const [, setValue] = (0, import_react23.useState)(subscription.current);
-    (0, import_react23.useEffect)(() => {
+    const [, setValue] = (0, import_react22.useState)(subscription.current);
+    (0, import_react22.useEffect)(() => {
       let didUnsubscribe = false;
       const checkForUpdates = (newValue) => {
         if (didUnsubscribe) {
@@ -19621,19 +19799,19 @@ ${errorInfo.componentStack}`);
   }
 
   // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/translate.mjs
-  var import_react24 = __toESM(require_react(), 1);
+  var import_react23 = __toESM(require_react(), 1);
   function useTranslate() {
     const {
       i18n
     } = useApi();
-    const translate = (0, import_react24.useCallback)((...args) => {
+    const translate = (0, import_react23.useCallback)((...args) => {
       const translation = i18n.translate(...args);
       if (!Array.isArray(translation)) {
         return translation;
       }
       return translation.map((part, index) => {
-        if (/* @__PURE__ */ (0, import_react24.isValidElement)(part)) {
-          return /* @__PURE__ */ (0, import_react24.cloneElement)(part, {
+        if (/* @__PURE__ */ (0, import_react23.isValidElement)(part)) {
+          return /* @__PURE__ */ (0, import_react23.cloneElement)(part, {
             key: index
           });
         }
@@ -19643,8 +19821,14 @@ ${errorInfo.componentStack}`);
     return translate;
   }
 
+  // node_modules/@shopify/ui-extensions-react/build/esm/surfaces/checkout/hooks/settings.mjs
+  function useSettings() {
+    const settings = useSubscription(useApi().settings);
+    return settings;
+  }
+
   // extensions/charity-donation-ui/src/Checkout.jsx
-  var import_react25 = __toESM(require_react());
+  var import_react24 = __toESM(require_react());
   var import_jsx_runtime4 = __toESM(require_jsx_runtime());
   var donationOptions = [
     { label: "\xA3100", value: "100" },
@@ -19660,18 +19844,22 @@ ${errorInfo.componentStack}`);
     const { query } = useApi();
     const lines = useCartLines();
     const applyCartLinesChange = useApplyCartLinesChange();
-    const [donationProduct, setDonationProduct] = (0, import_react25.useState)(null);
-    const [loading, setLoading] = (0, import_react25.useState)(false);
-    const [selectedValue, setSelectedValue] = (0, import_react25.useState)("0");
-    const [customValue, setCustomValue] = (0, import_react25.useState)("");
-    const [giftAid, setGiftAid] = (0, import_react25.useState)(false);
-    const [busy, setBusy] = (0, import_react25.useState)(false);
-    const [cartDonationAmount, setCartDonationAmount] = (0, import_react25.useState)(null);
-    const [showForm, setShowForm] = (0, import_react25.useState)(false);
-    (0, import_react25.useEffect)(() => {
+    const [donationProduct, setDonationProduct] = (0, import_react24.useState)(null);
+    const [loading, setLoading] = (0, import_react24.useState)(false);
+    const [selectedValue, setSelectedValue] = (0, import_react24.useState)("0");
+    const [customValue, setCustomValue] = (0, import_react24.useState)("");
+    const [giftAid, setGiftAid] = (0, import_react24.useState)(false);
+    const [busy, setBusy] = (0, import_react24.useState)(false);
+    const [cartDonationAmount, setCartDonationAmount] = (0, import_react24.useState)(null);
+    const [showForm, setShowForm] = (0, import_react24.useState)(false);
+    const { donation_title, donation_content, giftaid_content } = useSettings();
+    const title = donation_title || "Make A Donation";
+    const content = donation_content || "\xA310 a month could help someone join a Focus on Confident Living Outdoors course to hear about the services, equipment and aids that may be helpful for getting around. ";
+    const giftaid = giftaid_content || "Gift Aid";
+    (0, import_react24.useEffect)(() => {
       fetchDonationProduct();
     }, []);
-    (0, import_react25.useEffect)(() => {
+    (0, import_react24.useEffect)(() => {
       updateSelectedValueFromCart();
     }, [lines]);
     const fetchDonationProduct = () => __async(this, null, function* () {
@@ -19794,68 +19982,71 @@ ${errorInfo.componentStack}`);
     }
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(BlockStack2, { spacing: "base", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(BlockStack2, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Heading2, { level: "1", children: "Donation" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Heading2, { level: "1", children: title }),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
           Banner2,
           {
             status: "info",
-            title: "Help us to continue our work by making a donation."
+            title: content
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "base", children: "Choose an amount or enter your own:" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(BlockStack2, { background: "none", cornerRadius: "none", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(InlineLayout2, { columns: ["45%", "10%", "45%"], children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "base", minInlineSize: "fill", inlineSize: "fill", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-          ToggleButtonGroup2,
-          {
-            label: "Donation Amount",
-            value: selectedValue,
-            onChange: (value) => {
-              setSelectedValue(value);
-              setCustomValue("");
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(InlineStack2, { spacing: "base", children: donationOptions.map((option, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              ToggleButton2,
-              {
-                id: option.value.toString(),
-                value: option.value,
-                children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { blockAlignment: "center", inlineAlignment: "center", minInlineSize: "fill", inlineSize: "fill", children: option.label })
-              },
-              index
-            )) })
-          }
-        ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "base", blockAlignment: "center", children: "or" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "base", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-          TextField2,
-          {
-            type: "number",
-            value: customValue,
-            onChange: (value) => {
-              setSelectedValue(value || "0");
-              setCustomValue(value);
-            }
-          }
-        ) })
-      ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(BlockStack2, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        Pressable2,
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "none", children: "Choose an amount or enter your own:" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(BlockStack2, { background: "none", cornerRadius: "none", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+        Grid2,
         {
-          overlay: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Tooltip2, { children: "At no extra cost to you, every \xA31 donated with Gift Aid, Cancer Research UK gets an extra 25p from the government just by you choosing to Gift Aid it." }),
-          children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-            Checkbox2,
-            {
-              id: "giftAid",
-              name: "giftAid",
-              checked: giftAid,
-              onChange: (value) => setGiftAid(value),
-              children: [
-                "Donate as Gift Aid? (",
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Link2, { external: true, to: "https://www.cancerresearchuk.org/get-involved/donate/gift-aid/sign-up-to-gift-aid", children: "Register for Gift Aid" }),
-                ")"
-              ]
-            }
-          )
+          columns: Style.default(["fill"]).when({ viewportInlineSize: { min: "small" } }, [
+            "45%",
+            "10%",
+            "45%"
+          ]),
+          rows: Style.default(["auto", 30, "auto"]).when({ viewportInlineSize: { min: "small" } }, [
+            "auto"
+          ]),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "none", minInlineSize: "fill", inlineSize: "fill", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              ToggleButtonGroup2,
+              {
+                label: "Donation Amount",
+                value: selectedValue,
+                onChange: (value) => {
+                  setSelectedValue(value);
+                  setCustomValue("");
+                },
+                children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(InlineLayout2, { spacing: "base", minInlineSize: "fill", inlineSize: "fill", children: donationOptions.map((option, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  ToggleButton2,
+                  {
+                    id: option.value.toString(),
+                    value: option.value,
+                    children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { blockAlignment: "center", inlineAlignment: "center", minInlineSize: "fill", inlineSize: "fill", children: option.label })
+                  },
+                  index
+                )) })
+              }
+            ) }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "none", blockAlignment: "center", inlineAlignment: "center", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text2, { size: "base", children: "or" }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View2, { border: "none", padding: "none", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              TextField2,
+              {
+                type: "number",
+                value: customValue,
+                onChange: (value) => {
+                  setSelectedValue(value || "0");
+                  setCustomValue(value);
+                }
+              }
+            ) })
+          ]
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(BlockStack2, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        Checkbox2,
+        {
+          id: "giftAid",
+          name: "giftAid",
+          checked: giftAid,
+          onChange: (value) => setGiftAid(value),
+          children: giftaid
         }
       ) }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
