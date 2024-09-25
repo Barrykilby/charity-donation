@@ -15,9 +15,12 @@ import {
   ToggleButton,
   Checkbox,
   InlineLayout,
-  InlineStack,
   Heading,
-  TextField
+  TextField,
+  Style,
+  Grid,
+  Text,
+  useSettings,
 } from '@shopify/ui-extensions-react/checkout';
 import { useEffect, useState } from "react";
 
@@ -47,6 +50,12 @@ function Extension() {
   const [busy, setBusy] = useState(false);
   const [cartDonationAmount, setCartDonationAmount] = useState(null);
   const [showForm, setShowForm] = useState(false);
+
+  const { donation_title, donation_content, giftaid_content } = useSettings();
+
+  const title = donation_title || 'Make A Donation';
+  const content = donation_content || '£10 a month could help someone join a Focus on Confident Living Outdoors course to hear about the services, equipment and aids that may be helpful for getting around. ';
+  const giftaid = giftaid_content || 'Gift Aid';
 
   // Fetch donation product on component mount
   useEffect(() => {
@@ -211,18 +220,27 @@ function Extension() {
   return (
     <BlockStack spacing="base">
       <BlockStack>
-        <Heading level="1">Donation</Heading>
+        <Heading level="1">{title}</Heading>
         <Banner
           status="info"
-          title="Help us to continue our work by making a donation."
+          title={content}
         />
       </BlockStack>
-      <View border="none" padding="base">
+      <View border="none" padding="none">
         Choose an amount or enter your own:
       </View>
       <BlockStack background="none" cornerRadius="none">
-        <InlineLayout columns={['45%', '10%', '45%']}>
-          <View border="none" padding="base" minInlineSize="fill" inlineSize="fill">
+        <Grid 
+          columns={Style.default(['fill']).when({viewportInlineSize: {min: 'small'}}, [
+            '45%',
+            '10%',
+            '45%',
+          ])}
+          rows={Style.default(['auto', 30, 'auto']).when({viewportInlineSize: {min: 'small'}}, [
+            'auto',
+          ])}
+        >
+          <View border="none" padding="none" minInlineSize="fill" inlineSize="fill">
             <ToggleButtonGroup
               label="Donation Amount"
               value={selectedValue}
@@ -231,7 +249,7 @@ function Extension() {
                 setCustomValue('');
               }}
             >
-              <InlineStack spacing="base">
+              <InlineLayout spacing="base" minInlineSize="fill" inlineSize="fill">
                 {donationOptions.map((option, index) => (
                   <ToggleButton
                     id={option.value.toString()}
@@ -243,13 +261,13 @@ function Extension() {
                     </View>
                   </ToggleButton>
                 ))}
-              </InlineStack>
+              </InlineLayout>
             </ToggleButtonGroup>
           </View>
-          <View border="none" padding="base" blockAlignment="center">
-            or
+          <View border="none" padding="none" blockAlignment="center" inlineAlignment="center">
+            <Text size="base">or</Text>
           </View>
-          <View border="none" padding="base">
+          <View border="none" padding="none">
             <TextField
               type="number"
               value={customValue}
@@ -259,28 +277,17 @@ function Extension() {
               }}
             />
           </View>
-        </InlineLayout>
+        </Grid>
       </BlockStack>
       <BlockStack>
-        <Pressable
-          overlay={
-            <Tooltip>
-              At no extra cost to you, every £1 donated with Gift Aid, Cancer Research UK gets an extra 25p from the government just by you choosing to Gift Aid it.
-            </Tooltip>
-          }
+        <Checkbox
+          id="giftAid"
+          name="giftAid"
+          checked={giftAid}
+          onChange={(value) => setGiftAid(value)}
         >
-          <Checkbox
-            id="giftAid"
-            name="giftAid"
-            checked={giftAid}
-            onChange={(value) => setGiftAid(value)}
-          >
-            Donate as Gift Aid?
-            (<Link external={true} to="https://www.cancerresearchuk.org/get-involved/donate/gift-aid/sign-up-to-gift-aid">
-              Register for Gift Aid
-            </Link>)
-          </Checkbox>
-        </Pressable>
+          {giftaid}
+        </Checkbox>
       </BlockStack>
       <Button
         loading={busy}

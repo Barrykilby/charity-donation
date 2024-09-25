@@ -7,7 +7,7 @@ api_version = "2024-04"
 
 [[extensions]]
 type = "ui_extension"
-name = "charity-donation-ui"
+name = "Charity Donation UI"
 handle = "charity-donation-ui"
 
 # Controls where in Shopify your extension will be injected,
@@ -43,9 +43,19 @@ api_access = true
 # your extension. Learn more:
 # https://shopify.dev/docs/api/checkout-ui-extensions/unstable/configuration#settings-definition
 
-# [extensions.settings]
-# [[extensions.settings.fields]]
-# key = "banner_title"
-# type = "single_line_text_field"
-# name = "Banner title"
-# description = "Enter a title for the banner"
+[extensions.settings]
+[[extensions.settings.fields]]
+key = "donation_title"
+type = "single_line_text_field"
+name = "Donation Banner title"
+description = "Enter a title for the Donation banner"
+[[extensions.settings.fields]]
+key = "donation_content"
+type = "single_line_text_field"
+name = "Donation Banner content"
+description = "Enter a content for the Donation banner"
+[[extensions.settings.fields]]
+key = "giftaid_content"
+type = "single_line_text_field"
+name = "Donation Banner Gift aid content"
+description = "Enter a content for the Donation Banner Gift aid content"
